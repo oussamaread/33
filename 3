@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract MultiChainBridge {
+    address public owner;
+    address public bscBridge;
+    mapping(address => mapping(uint256 => bool)) public processedTransactions;
+
+    event Deposit(address indexed sender, address indexed recipient, uint256 amount, uint256 indexed nonce, string indexed destinationChain);
+    event Withdrawal(address indexed sender, address indexed recipient, uint256 amount, uint256 indexed nonce, string indexed sourceChain);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the owner can call this function");
+        _;
+    }
+
+    constructor(address _bscBridge) {
+        owner = msg.sender;
+        bscBridge = _bscBridge;
+    }
+
+    function deposit(address _recipient, uint256 _amount, uint256 _nonce, string memory _destinationChain) external {
+        require(_recipient != address(0), "Invalid recipient address");
+        require(_amount > 0, "Amount must be greater than zero");
+        require(!processedTransactions[msg.sender][_nonce], "Transaction already processed");
+
+        processedTransactions[msg.sender][_nonce] = true;
+        emit Deposit(msg.sender, _recipient, _amount, _nonce, _destinationChain);
+    }
+
+    function withdraw(address _recipient, uint256 _amount, uint256 _nonce, string memory _sourceChain) external onlyOwner {
+        require(_recipient != address(0), "Invalid recipient address");
+        require(_amount > 0, "Amount must be greater than zero");
+        require(!processedTransactions[_recipient][_nonce], "Transaction already processed");
+
+        processedTransactions[_recipient][_nonce] = true;
+        emit Withdrawal(address(this), _recipient, _amount, _nonce, _sourceChain);
+    }
+
+    function receiveTokens(address _token, address _recipient, uint256 _amount, uint256 _nonce, string memory _sourceChain) external {
+        require(msg.sender == bscBridge, "Only the BSC bridge contract can call this function");
+        require(_recipient != address(0), "Invalid recipient address");
+        require(_amount > 0, "Amount must be greater than zero");
+        require(!processedTransactions[_recipient][_nonce], "Transaction already processed");
+
+        processedTransactions[_recipient][_nonce] = true;
+        emit Deposit(_token, _recipient, _amount, _nonce, _sourceChain);
+    }
+
+    function sendTokens(address _token, address _recipient, uint256 _amount, uint256 _nonce, string memory _destinationChain) external onlyOwner {
+        require(_recipient != address(0), "Invalid recipient address");
+        require(_amount > 0, "Amount must be greater than zero");
+        require(!processedTransactions[_recipient][_nonce], "Transaction already processed");
+
+        processedTransactions[_recipient][_nonce] = true;
+        emit Withdrawal(_token, _recipient, _amount, _nonce, _destinationChain);
+    }
+}
